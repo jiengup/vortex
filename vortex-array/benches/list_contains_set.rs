@@ -36,9 +36,11 @@ fn main() {
 }
 
 // Sized to keep CodSpeed simulation under 1ms per benchmark.
-const ROWS: usize = 4_096;
-const CHUNKS: usize = 16;
-const SET_LENS: &[usize] = &[4, 64, 1_024];
+const ROWS: usize = 1_024;
+const CHUNKS: usize = 4;
+const SET_LENS: &[usize] = &[4, 64, 256];
+/// A nested set compares whole rows to sort its elements and to probe them, so it stays smaller.
+const NESTED_SET_LENS: &[usize] = &[4, 16, 32];
 
 /// A random set of `len` values, and needles of which about half are members.
 fn random_i64(len: usize) -> (Vec<i64>, Vec<i64>) {
@@ -168,7 +170,7 @@ fn utf8_random_chunked(bencher: Bencher, set_len: usize) {
     bench_in_set(bencher, utf8_set(&set), utf8_needles(&needles, CHUNKS));
 }
 
-#[divan::bench(args = [4_096, 16_384])]
+#[divan::bench(args = [1_024, 2_048])]
 fn i64_random_large(bencher: Bencher, set_len: usize) {
     let (set, needles) = random_i64(set_len);
     bench_in_set(bencher, i64_set(&set), i64_needles(&needles, 1));
@@ -199,7 +201,7 @@ fn bench_decimal(bencher: Bencher, set: Vec<i64>, needles: Vec<i64>) {
     bench_in_set(bencher, set, needles);
 }
 
-#[divan::bench(args = SET_LENS)]
+#[divan::bench(args = NESTED_SET_LENS)]
 fn nested_list_random(bencher: Bencher, set_len: usize) {
     let (set, needles) = random_i64(set_len);
     let element_dtype = Arc::new(DType::Primitive(PType::I64, Nullability::NonNullable));
