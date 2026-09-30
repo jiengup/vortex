@@ -78,7 +78,7 @@ resolver = "3"
 authors = ["Vortex Authors <hello@vortex.dev>"]
 categories = ["database-implementations", "data-structures", "compression"]
 edition = "2024"
-homepage = "https://github.com/spiraldb/vortex"
+homepage = "https://github.com/vortex-data/vortex"
 include = [
 
     "build.rs",
