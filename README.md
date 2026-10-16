@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/vortex-data/vortex/actions/workflows/ci.yml/badge.svg)](https://github.com/vortex-data/vortex/actions)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/10567/badge)](https://www.bestpractices.dev/projects/10567)
 [![Documentation](https://docs.rs/vortex/badge.svg)](https://docs.vortex.dev)
-[![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/vortex-data/vortex)
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/jiengup/vortex?utm_source=badge)
 [![Crates.io](https://img.shields.io/crates/v/vortex.svg)](https://crates.io/crates/vortex)
 [![PyPI - Version](https://img.shields.io/pypi/v/vortex-data)](https://pypi.org/project/vortex-data/)
 [![Maven - Version](https://img.shields.io/maven-central/v/dev.vortex/vortex-spark_2.13)](https://central.sonatype.com/artifact/dev.vortex/vortex-spark_2.13)
