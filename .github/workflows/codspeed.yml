@@ -154,6 +154,12 @@ jobs:
         with:
           enable-sccache: ${{ github.repository == 'vortex-data/vortex' && 'true' || 'false' }}
       - uses: ./.github/actions/system-info
+      # The prebuilt image ships uv; `ubuntu-latest` (used by forks) does not.
+      - name: Install uv
+        if: github.repository != 'vortex-data/vortex'
+        uses: spiraldb/actions/.github/actions/setup-uv@a746510eafaa926484c354541cfc49b2ec06cc63  # 0.18.6
+        with:
+          sync: false
       # Build the extension before measurement, so the benchmark step does not compile it.
       - name: Build Python extension
         run: uv sync --all-packages
