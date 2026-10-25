@@ -21,6 +21,8 @@ use vortex_array::ArrayView;
 use vortex_array::EqMode;
 use vortex_array::ExecutionCtx;
 use vortex_array::ExecutionResult;
+use vortex_array::ProbeState;
+use vortex_array::RepeatedArrayProbe;
 use vortex_array::buffer::BufferHandle;
 use vortex_array::dtype::DType;
 use vortex_array::scalar::Scalar;
@@ -36,6 +38,7 @@ use vortex_buffer::Alignment;
 use vortex_buffer::ByteBuffer;
 use vortex_buffer::ByteBufferMut;
 use vortex_error::VortexResult;
+use vortex_error::VortexExpect;
 use vortex_error::vortex_ensure;
 use vortex_error::vortex_ensure_eq;
 use vortex_error::vortex_err;
@@ -635,20 +638,60 @@ impl VTable for ZstdBuffers {
 }
 
 impl OperationsVTable<ZstdBuffers> for ZstdBuffers {
-    type ProbeState = ();
+    type ProbeState = ZstdBuffersProbeState;
+
+    fn probe_scalar(
+        state: &mut ProbeState<'_, ZstdBuffers>,
+        index: usize,
+        ctx: &mut ExecutionCtx,
+    ) -> VortexResult<Scalar> {
+        if !state.is_valid(index, ctx)? {
+            return Ok(Scalar::null(state.array().dtype().clone()));
+        }
+
+        let array = state.array();
+        if let Some(retained) = state.retained() {
+            let cacheable = *retained.cacheable.get_or_insert_with(|| {
+                array
+                    .data()
+                    .uncompressed_sizes
+                    .iter()
+                    .try_fold(0u64, |sum, &size| sum.checked_add(size))
+                    .is_some_and(|size| size <= MAX_RETAINED_BUFFER_BYTES)
+            });
+            if cacheable {
+                if retained.inner.is_none() {
+                    let decoded =
+                        ZstdBuffers::decompress_and_build_inner(&array.into_owned(), ctx.session())?;
+                    retained.inner = Some(decoded.repeated_probe());
+                }
+                return retained
+                    .inner
+                    .as_mut()
+                    .vortex_expect("ZstdBuffers decoded probe is initialized")
+                    .execute_scalar(index, ctx);
+            }
+        }
+
+        let decoded = ZstdBuffers::decompress_and_build_inner(&array.into_owned(), ctx.session())?;
+        decoded.execute_scalar(index, ctx)
+    }
 
     fn scalar_at(
         array: ArrayView<'_, ZstdBuffers>,
         index: usize,
         ctx: &mut ExecutionCtx,
     ) -> VortexResult<Scalar> {
-        // TODO(os): maybe we should not support scalar_at, it is really slow, and adding a cache
-        // layer here is weird. Valid use of zstd buffers array would be by executing it first into
-        // canonical
-        let inner_array =
-            ZstdBuffers::decompress_and_build_inner(&array.into_owned(), ctx.session())?;
-        inner_array.execute_scalar(index, ctx)
+        Self::probe_scalar(&mut ProbeState::once(array), index, ctx)
     }
+}
+
+const MAX_RETAINED_BUFFER_BYTES: u64 = 1024 * 1024;
+
+#[derive(Default)]
+pub struct ZstdBuffersProbeState {
+    inner: Option<RepeatedArrayProbe>,
+    cacheable: Option<bool>,
 }
 
 impl ValidityVTable<ZstdBuffers> for ZstdBuffers {
@@ -719,6 +762,22 @@ mod tests {
 
     fn make_inlined_varbinview_array() -> ArrayRef {
         VarBinViewArray::from_iter_str(["hi", "ok", "yes", "no"]).into_array()
+    }
+
+    #[test]
+    fn test_scalar_probe_consistency() -> VortexResult<()> {
+        let session = array_session();
+        let mut ctx = session.create_execution_ctx();
+        for input in [make_nullable_primitive_array(), make_nullable_varbinview_array()] {
+            let compressed = ZstdBuffers::compress(&input, 3, &session)?.into_array();
+            let mut repeated = compressed.repeated_probe();
+            for index in [0, 1, 4, 3, 2, 1, 0] {
+                let expected = input.execute_scalar(index, &mut ctx)?;
+                assert_eq!(compressed.execute_scalar(index, &mut ctx)?, expected);
+                assert_eq!(repeated.execute_scalar(index, &mut ctx)?, expected);
+            }
+        }
+        Ok(())
     }
 
     #[rstest]
