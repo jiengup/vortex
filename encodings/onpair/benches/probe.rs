@@ -14,6 +14,7 @@ use vortex_array::arrays::PrimitiveArray;
 use vortex_array::arrays::VarBinArray;
 use vortex_array::dtype::DType;
 use vortex_array::dtype::Nullability;
+use vortex_array::optimizer::kernels::KernelSession;
 use vortex_fastlanes::Delta;
 use vortex_fastlanes::bitpack_compress::bitpack_encode;
 use vortex_onpair::DEFAULT_CONFIG;
@@ -21,7 +22,6 @@ use vortex_onpair::OnPair;
 use vortex_onpair::OnPairArrayExt;
 use vortex_onpair::OnPairArraySlotsExt;
 use vortex_onpair::onpair_compress;
-use vortex_array::optimizer::kernels::KernelSession;
 use vortex_session::VortexSession;
 
 #[global_allocator]

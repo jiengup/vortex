@@ -11,10 +11,10 @@ use vortex_array::ArrayRef;
 use vortex_array::IntoArray;
 use vortex_array::VortexSessionExecute;
 use vortex_array::arrays::PrimitiveArray;
+use vortex_array::optimizer::kernels::KernelSession;
 use vortex_fastlanes::Delta;
 use vortex_fastlanes::DeltaArraySlotsExt;
 use vortex_fastlanes::bitpack_compress::bitpack_encode;
-use vortex_array::optimizer::kernels::KernelSession;
 use vortex_session::VortexSession;
 
 #[global_allocator]

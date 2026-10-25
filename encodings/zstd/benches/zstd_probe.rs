@@ -10,9 +10,9 @@ use mimalloc::MiMalloc;
 use vortex_array::ArrayRef;
 use vortex_array::IntoArray;
 use vortex_array::VortexSessionExecute;
-use vortex_array::array_session;
 use vortex_array::arrays::PrimitiveArray;
 use vortex_array::arrays::VarBinViewArray;
+use vortex_array::optimizer::kernels::KernelSession;
 use vortex_session::VortexSession;
 use vortex_zstd::Zstd;
 
@@ -34,7 +34,7 @@ const CASES: &[(&str, &str)] = &[
 ];
 
 static SESSION: LazyLock<VortexSession> = LazyLock::new(|| {
-    let session = array_session();
+    let session = VortexSession::empty().with::<KernelSession>();
     vortex_zstd::initialize(&session);
     session
 });

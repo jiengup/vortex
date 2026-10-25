@@ -16,8 +16,8 @@ use vortex_array::IntoArray;
 use vortex_array::VortexSessionExecute;
 use vortex_array::arrays::PrimitiveArray;
 use vortex_array::dtype::NativePType;
-use vortex_buffer::Buffer;
 use vortex_array::optimizer::kernels::KernelSession;
+use vortex_buffer::Buffer;
 use vortex_session::VortexSession;
 
 #[global_allocator]

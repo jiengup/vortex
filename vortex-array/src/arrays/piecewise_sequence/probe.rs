@@ -277,12 +277,11 @@ mod tests {
     use vortex_error::VortexResult;
     use vortex_session::VortexSession;
 
+    use super::MAX_CHECKPOINTS;
+    use super::prepare_index;
     use crate::IntoArray;
     use crate::VortexSessionExecute;
     use crate::arrays::PrimitiveArray;
-
-    use super::MAX_CHECKPOINTS;
-    use super::prepare_index;
 
     static SESSION: LazyLock<VortexSession> = LazyLock::new(VortexSession::empty);
 

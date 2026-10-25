@@ -107,6 +107,7 @@ mod test {
     use crate::bitpack_compress::bitpack_encode;
     use crate::bitpack_compress::bitpack_encode_blocked;
     use crate::bitpacking::array::BitPackedArrayExt;
+    use crate::bitpacking::array::BitPackedArraySlotsExt;
     use crate::test::SESSION;
 
     fn bp(array: &ArrayRef, bit_width: u8) -> BitPackedArray {

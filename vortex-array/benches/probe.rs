@@ -15,32 +15,43 @@ use vortex_array::VortexSessionExecute;
 use vortex_array::arrays::BoolArray;
 use vortex_array::arrays::ChunkedArray;
 use vortex_array::arrays::ConstantArray;
+use vortex_array::arrays::DecimalArray;
 use vortex_array::arrays::DictArray;
+use vortex_array::arrays::FilterArray;
+use vortex_array::arrays::FixedSizeListArray;
 use vortex_array::arrays::InterleaveArray;
 use vortex_array::arrays::ListArray;
 use vortex_array::arrays::ListViewArray;
 use vortex_array::arrays::MapArray;
+use vortex_array::arrays::NullArray;
 use vortex_array::arrays::Patched;
 use vortex_array::arrays::PiecewiseSequenceArray;
 use vortex_array::arrays::PrimitiveArray;
 use vortex_array::arrays::ScalarFnArray;
 use vortex_array::arrays::StructArray;
+use vortex_array::arrays::UnionArray;
+use vortex_array::arrays::VarBinArray;
 use vortex_array::arrays::VarBinViewArray;
+use vortex_array::arrays::VariantArray;
 use vortex_array::arrays::patched::PatchedArraySlotsExt;
 use vortex_array::arrays::patched::PatchedSlots;
 use vortex_array::dtype::DType;
+use vortex_array::dtype::DecimalDType;
 use vortex_array::dtype::FieldNames;
 use vortex_array::dtype::MapDType;
 use vortex_array::dtype::Nullability;
 use vortex_array::dtype::PType;
+use vortex_array::dtype::UnionVariants;
 use vortex_array::optimizer::kernels::KernelSession;
 use vortex_array::patches::Patches;
+use vortex_array::scalar::Scalar;
 use vortex_array::scalar_fn::TypedScalarFnInstance;
 use vortex_array::scalar_fn::fns::binary::Binary;
 use vortex_array::scalar_fn::fns::operators::Operator;
 use vortex_array::validity::Validity;
 use vortex_buffer::Buffer;
 use vortex_error::VortexExpect;
+use vortex_mask::Mask;
 use vortex_session::VortexSession;
 
 #[global_allocator]
@@ -104,6 +115,73 @@ fn nullable_list() -> ArrayRef {
     )
     .vortex_expect("list fixture")
     .into_array()
+}
+
+fn nullable_listview() -> ArrayRef {
+    let offsets = PrimitiveArray::from_iter(
+        (0..LEN).map(|index| u32::try_from(index * 3).vortex_expect("offset fits u32")),
+    )
+    .into_array();
+    let sizes = ConstantArray::new(3u32, LEN).into_array();
+    ListViewArray::new(
+        nullable_primitive(LEN * 3),
+        offsets,
+        sizes,
+        Validity::from_iter((0..LEN).map(|index| index % 11 != 0)),
+        &mut SESSION.create_execution_ctx(),
+    )
+    .into_array()
+}
+
+fn nullable_fixed_size_list() -> ArrayRef {
+    FixedSizeListArray::new(
+        nullable_primitive(LEN * 3),
+        3,
+        Validity::from_iter((0..LEN).map(|index| index % 11 != 0)),
+        LEN,
+    )
+    .into_array()
+}
+
+fn nullable_filter() -> ArrayRef {
+    FilterArray::new(
+        nullable_primitive(LEN * 2),
+        Mask::from_iter((0..LEN * 2).map(|index| index % 2 == 0)),
+    )
+    .into_array()
+}
+
+fn nullable_union() -> ArrayRef {
+    let type_ids = PrimitiveArray::from_option_iter((0..LEN).map(|index| {
+        (index % 13 != 0).then_some(if index % 2 == 0 { 5u8 } else { 9u8 })
+    }))
+    .into_array();
+    let variants = UnionVariants::try_new(
+        ["number", "flag"].into(),
+        vec![
+            DType::Primitive(PType::I32, Nullability::NonNullable),
+            DType::Bool(Nullability::NonNullable),
+        ],
+        vec![5, 9],
+    )
+    .vortex_expect("union variants");
+    UnionArray::try_new(
+        type_ids,
+        variants,
+        vec![
+            PrimitiveArray::from_iter((0..LEN).map(|index| index as i32)).into_array(),
+            BoolArray::from_iter((0..LEN).map(|index| index % 2 == 1)).into_array(),
+        ],
+    )
+    .vortex_expect("union fixture")
+    .into_array()
+}
+
+fn variant() -> ArrayRef {
+    let storage = ConstantArray::new(Scalar::variant(Scalar::from(42i32)), LEN).into_array();
+    VariantArray::try_new(storage, None)
+        .vortex_expect("variant fixture")
+        .into_array()
 }
 
 fn nullable_interleave() -> ArrayRef {
@@ -272,9 +350,19 @@ const ARRAYS: &[&str] = &[
     "dict",
     "struct",
     "bool",
+    "constant",
+    "decimal",
+    "null",
     "varbinview",
+    "varbin",
     "list",
+    "listview",
+    "fixed_size_list",
+    "filter",
     "interleave",
+    "union",
+    "variant",
+    "scalar_fn_validity",
     "map",
     "patched",
     "piecewise_variable",
@@ -290,6 +378,15 @@ fn array(name: &str) -> ArrayRef {
     match name {
         "primitive" => nullable_primitive(LEN),
         "list" => nullable_list(),
+        "listview" => nullable_listview(),
+        "fixed_size_list" => nullable_fixed_size_list(),
+        "filter" => nullable_filter(),
+        "union" => nullable_union(),
+        "variant" => variant(),
+        "scalar_fn_validity" => scalar_fn(false)
+            .validity()
+            .vortex_expect("scalar function validity")
+            .to_array(LEN),
         "interleave" => nullable_interleave(),
         "map" => nullable_map(),
         "patched" => patched(),
@@ -302,6 +399,21 @@ fn array(name: &str) -> ArrayRef {
         "bool" => {
             BoolArray::from_iter((0..LEN).map(|i| (i % 7 != 0).then_some(i % 2 == 0))).into_array()
         }
+        "constant" => ConstantArray::new(42i64, LEN).into_array(),
+        "decimal" => DecimalArray::from_iter(
+            (0..LEN).map(|index| index as i128),
+            DecimalDType::new(18, 2),
+        )
+        .into_array(),
+        "null" => NullArray::new(LEN).into_array(),
+        "varbin" => VarBinArray::from_iter(
+            [Some("short"), None, Some("longer varbin string")]
+                .into_iter()
+                .cycle()
+                .take(LEN),
+            DType::Utf8(Nullability::Nullable),
+        )
+        .into_array(),
         "varbinview" => VarBinViewArray::from_iter(
             [
                 Some("short"),

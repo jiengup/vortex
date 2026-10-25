@@ -39,7 +39,7 @@ static SESSION: LazyLock<VortexSession> = LazyLock::new(VortexSession::empty);
 
 #[test]
 fn test_zstd_scalar_probe_consistency() -> VortexResult<()> {
-    let mut ctx = array_session().create_execution_ctx();
+    let mut ctx = SESSION.create_execution_ctx();
     let primitive = PrimitiveArray::from_option_iter(
         (0..300).map(|index| (index % 11 != 0).then_some(index)),
     );

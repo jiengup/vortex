@@ -10,11 +10,11 @@ use mimalloc::MiMalloc;
 use vortex_array::ArrayRef;
 use vortex_array::IntoArray;
 use vortex_array::VortexSessionExecute;
-use vortex_array::array_session;
 use vortex_array::arrays::PrimitiveArray;
 use vortex_array::dtype::DType;
 use vortex_array::dtype::Nullability;
 use vortex_array::dtype::PType;
+use vortex_array::optimizer::kernels::KernelSession;
 use vortex_array::scalar::Scalar;
 use vortex_buffer::Buffer;
 use vortex_session::VortexSession;
@@ -35,7 +35,7 @@ const CASES: &[(&str, &str)] = &[
 ];
 
 static SESSION: LazyLock<VortexSession> = LazyLock::new(|| {
-    let session = array_session();
+    let session = VortexSession::empty().with::<KernelSession>();
     vortex_sparse::initialize(&session);
     session
 });
