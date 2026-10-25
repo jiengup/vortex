@@ -20,6 +20,7 @@ use vortex_array::assert_arrays_eq;
 use vortex_array::buffer::BufferHandle;
 use vortex_array::builders::VarBinBuilder;
 use vortex_array::builtins::ArrayBuiltins;
+use vortex_array::compute::conformance::consistency::test_scalar_probe_consistency;
 use vortex_array::compute::conformance::take::test_take_conformance;
 use vortex_array::dtype::DType;
 use vortex_array::dtype::Nullability;
@@ -29,6 +30,8 @@ use vortex_array::scalar_fn::fns::operators::Operator;
 use vortex_array::test_harness::check_metadata;
 use vortex_array::validity::Validity;
 use vortex_buffer::BufferMut;
+use vortex_fastlanes::Delta;
+use vortex_fastlanes::bitpack_compress::bitpack_encode;
 use vortex_session::VortexSession;
 
 use crate::DEFAULT_CONFIG;
@@ -41,6 +44,7 @@ use crate::compress::onpair_compress;
 static SESSION: LazyLock<VortexSession> = LazyLock::new(|| {
     let session = VortexSession::empty();
     crate::initialize(&session);
+    vortex_fastlanes::initialize(&session);
     session
 });
 
@@ -294,6 +298,104 @@ fn test_onpair_scalar_at_window() -> vortex_error::VortexResult<()> {
             "sliced row {j}"
         );
     }
+    Ok(())
+}
+
+#[test]
+fn test_onpair_probe_nullable_revisits_and_nested_slice() -> vortex_error::VortexResult<()> {
+    let strings: Vec<Option<String>> = (0..2050)
+        .map(|index| {
+            (index % 11 != 0).then(|| format!("https://example.com/items/{index:08}"))
+        })
+        .collect();
+    let input = VarBinArray::from_iter(
+        strings.iter().map(|value| value.as_deref()),
+        DType::Utf8(Nullability::Nullable),
+    );
+    let mut ctx = SESSION.create_execution_ctx();
+    let encoded = compress_onpair(input.as_ref(), &mut ctx)?.into_array();
+    test_scalar_probe_consistency(&encoded, &mut ctx);
+    let sliced = encoded.slice(100..2050)?.slice(800..1700)?;
+    test_scalar_probe_consistency(&sliced, &mut ctx);
+
+    let mut probe = sliced.repeated_probe();
+    for index in [0, 123, 124, 1, 899, 123, 0, 124] {
+        assert_eq!(
+            probe.execute_scalar(index, &mut ctx)?,
+            input.execute_scalar(index + 900, &mut ctx)?
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn test_onpair_probe_binary_with_compressed_children() -> vortex_error::VortexResult<()> {
+    let values: Vec<Vec<u8>> = (0..2049)
+        .map(|index| format!("value-{index:06}").into_bytes())
+        .collect();
+    let input = VarBinArray::from_iter(
+        values.iter().map(|value| Some(value.as_slice())),
+        DType::Binary(Nullability::NonNullable),
+    );
+    let mut ctx = SESSION.create_execution_ctx();
+    let encoded = compress_onpair(input.as_ref(), &mut ctx)?;
+    let view = encoded.as_view();
+    let offsets = view
+        .codes_offsets()
+        .clone()
+        .execute::<PrimitiveArray>(&mut ctx)?;
+    let lengths = view
+        .uncompressed_lengths()
+        .clone()
+        .execute::<PrimitiveArray>(&mut ctx)?;
+    let codes = view.codes().clone().execute::<PrimitiveArray>(&mut ctx)?;
+    let compressed = OnPair::try_new_with_data(
+        view.dtype().clone(),
+        view.data().clone(),
+        view.dict_offsets().clone(),
+        bitpack_encode(&codes, 12, None, &mut ctx)?.into_array(),
+        Delta::try_from_primitive_array(&offsets, &mut ctx)?.into_array(),
+        Delta::try_from_primitive_array(&lengths, &mut ctx)?.into_array(),
+        view.array_validity(),
+    )?
+    .into_array();
+    test_scalar_probe_consistency(&compressed, &mut ctx);
+    let sliced = compressed.slice(500..2049)?.slice(400..1300)?;
+    test_scalar_probe_consistency(&sliced, &mut ctx);
+    let mut probe = sliced.repeated_probe();
+    for index in [0, 123, 124, 899, 123, 0] {
+        assert_eq!(
+            probe.execute_scalar(index, &mut ctx)?,
+            input.execute_scalar(index + 900, &mut ctx)?
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn test_onpair_probe_null_skips_invalid_dictionary() -> vortex_error::VortexResult<()> {
+    let input = VarBinArray::from_iter(
+        [None, Some("alpha"), Some("beta")],
+        DType::Utf8(Nullability::Nullable),
+    );
+    let mut ctx = SESSION.create_execution_ctx();
+    let encoded = compress_onpair(input.as_ref(), &mut ctx)?;
+    let view = encoded.as_view();
+    let truncated = view.dict_bytes().slice(0..view.dict_bytes().len() - 1);
+    let corrupt = OnPair::try_new(
+        view.dtype().clone(),
+        BufferHandle::new_host(truncated),
+        view.dict_offsets().clone(),
+        view.codes().clone(),
+        view.codes_offsets().clone(),
+        view.uncompressed_lengths().clone(),
+        view.array_validity(),
+    )?
+    .into_array();
+    let mut probe = corrupt.repeated_probe();
+    assert!(probe.execute_scalar(0, &mut ctx)?.is_null());
+    assert!(probe.execute_scalar(1, &mut ctx).is_err());
+    assert!(probe.execute_scalar(0, &mut ctx)?.is_null());
     Ok(())
 }
 
