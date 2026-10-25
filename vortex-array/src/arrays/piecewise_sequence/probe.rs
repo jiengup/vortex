@@ -272,20 +272,25 @@ fn out_of_bounds(index: usize) -> vortex_error::VortexError {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::LazyLock;
+
     use vortex_error::VortexResult;
+    use vortex_session::VortexSession;
 
     use crate::IntoArray;
-    use crate::array_session;
+    use crate::VortexSessionExecute;
     use crate::arrays::PrimitiveArray;
 
     use super::MAX_CHECKPOINTS;
     use super::prepare_index;
 
+    static SESSION: LazyLock<VortexSession> = LazyLock::new(VortexSession::empty);
+
     #[test]
     fn checkpoint_count_stays_bounded_with_many_pieces() -> VortexResult<()> {
         let count = MAX_CHECKPOINTS * 3 + 1;
         let lengths = PrimitiveArray::from_iter(std::iter::repeat_n(1u8, count)).into_array();
-        let mut ctx = array_session().create_execution_ctx();
+        let mut ctx = SESSION.create_execution_ctx();
         let mut index = prepare_index(&lengths, count, &mut ctx)?;
         assert!(index.checkpoints.len() <= MAX_CHECKPOINTS);
 

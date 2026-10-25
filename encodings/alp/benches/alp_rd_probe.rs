@@ -17,6 +17,7 @@ use vortex_array::VortexSessionExecute;
 use vortex_array::arrays::PrimitiveArray;
 use vortex_array::dtype::NativePType;
 use vortex_buffer::Buffer;
+use vortex_array::optimizer::kernels::KernelSession;
 use vortex_session::VortexSession;
 
 #[global_allocator]
@@ -31,7 +32,7 @@ const LEN: usize = 65_536;
 const ACCESSES: usize = 256;
 
 static SESSION: LazyLock<VortexSession> = LazyLock::new(|| {
-    let session = vortex_array::array_session();
+    let session = VortexSession::empty().with::<KernelSession>();
     vortex_alp::initialize(&session);
     session
 });

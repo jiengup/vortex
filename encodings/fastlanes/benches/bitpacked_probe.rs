@@ -18,6 +18,7 @@ use vortex_fastlanes::BitPackedArraySlotsExt;
 use vortex_fastlanes::FoR;
 use vortex_fastlanes::bitpack_compress::bitpack_encode;
 use vortex_fastlanes::bitpack_compress::bitpack_encode_blocked;
+use vortex_array::optimizer::kernels::KernelSession;
 use vortex_session::VortexSession;
 
 #[global_allocator]
@@ -41,7 +42,7 @@ const FIXTURES: &[(&str, bool)] = &[
 const PATCHED_FIXTURES: &[&str] = &["global", "blocked_primitive", "blocked_for"];
 
 static SESSION: LazyLock<VortexSession> = LazyLock::new(|| {
-    let session = vortex_array::array_session();
+    let session = VortexSession::empty().with::<KernelSession>();
     vortex_fastlanes::initialize(&session);
     session
 });
