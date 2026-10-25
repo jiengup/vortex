@@ -25,6 +25,7 @@ use vortex_array::EqMode;
 use vortex_array::ExecutionCtx;
 use vortex_array::ExecutionResult;
 use vortex_array::IntoArray;
+use vortex_array::ProbeState;
 use vortex_array::array_slots;
 use vortex_array::arrays::ConstantArray;
 use vortex_array::arrays::PrimitiveArray;
@@ -1462,6 +1463,14 @@ impl ZstdData {
         ctx: &mut ExecutionCtx,
     ) -> VortexResult<ArrayRef> {
         let slice = self.decompress_slice(dtype, unsliced_validity, ctx)?;
+        Self::array_from_decompressed_slice(dtype, slice, ctx)
+    }
+
+    fn array_from_decompressed_slice(
+        dtype: &DType,
+        slice: DecompressedSlice,
+        ctx: &mut ExecutionCtx,
+    ) -> VortexResult<ArrayRef> {
         match dtype {
             DType::Primitive(..) => {
                 let Range { start, end } = slice.value_range()?;
@@ -1588,22 +1597,83 @@ impl ValidityVTable<Zstd> for Zstd {
 }
 
 impl OperationsVTable<Zstd> for Zstd {
-    type ProbeState = ();
+    type ProbeState = ZstdProbeState;
+
+    fn probe_scalar(
+        state: &mut ProbeState<'_, Zstd>,
+        index: usize,
+        ctx: &mut ExecutionCtx,
+    ) -> VortexResult<Scalar> {
+        if !state.is_valid(index, ctx)? {
+            return Ok(Scalar::null(state.array().dtype().clone()));
+        }
+
+        if let Some(window) = state.retained().and_then(|state| state.window.as_ref())
+            && window.start <= index
+            && index - window.start < window.array.len()
+        {
+            return window.array.execute_scalar(index - window.start, ctx);
+        }
+
+        let array = state.array();
+        let unsliced_validity = child_to_validity(
+            array.slots()[ZstdSlots::VALIDITY].as_ref(),
+            array.dtype().nullability(),
+        );
+        let window_start = index / PROBE_WINDOW_ROWS * PROBE_WINDOW_ROWS;
+        let promote = state.retained().is_some_and(|retained| {
+            retained.last_window_start == Some(window_start)
+                && retained.uncacheable_window != Some(window_start)
+        });
+        let start = if promote { window_start } else { index };
+        let stop = if promote {
+            start.saturating_add(PROBE_WINDOW_ROWS).min(array.len())
+        } else {
+            index + 1
+        };
+        let slice = array
+            .data()
+            .with_slice(start, stop)
+            .decompress_slice(array.dtype(), &unsliced_validity, ctx)?;
+        let retain = slice.bytes.len() <= MAX_RETAINED_DECOMPRESSED_BYTES;
+        let decoded = ZstdData::array_from_decompressed_slice(array.dtype(), slice, ctx)?;
+        let scalar = decoded.execute_scalar(index - start, ctx)?;
+        if let Some(retained) = state.retained() {
+            retained.last_window_start = Some(window_start);
+            if !retain {
+                retained.uncacheable_window = Some(window_start);
+            } else if promote {
+                retained.window = Some(DecodedWindow {
+                    start,
+                    array: decoded,
+                });
+            }
+        }
+        Ok(scalar)
+    }
 
     fn scalar_at(
         array: ArrayView<'_, Zstd>,
         index: usize,
         ctx: &mut ExecutionCtx,
     ) -> VortexResult<Scalar> {
-        let unsliced_validity = child_to_validity(
-            array.slots()[ZstdSlots::VALIDITY].as_ref(),
-            array.dtype().nullability(),
-        );
-        let sliced = array.data().with_slice(index, index + 1);
-        sliced
-            .decompress(array.dtype(), &unsliced_validity, ctx)?
-            .execute_scalar(0, ctx)
+        Self::probe_scalar(&mut ProbeState::once(array), index, ctx)
     }
+}
+
+const PROBE_WINDOW_ROWS: usize = 128;
+const MAX_RETAINED_DECOMPRESSED_BYTES: usize = 1024 * 1024;
+
+#[derive(Default)]
+pub struct ZstdProbeState {
+    window: Option<DecodedWindow>,
+    last_window_start: Option<usize>,
+    uncacheable_window: Option<usize>,
+}
+
+struct DecodedWindow {
+    start: usize,
+    array: ArrayRef,
 }
 
 #[cfg(test)]
