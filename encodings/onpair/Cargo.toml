@@ -32,7 +32,12 @@ divan = { workspace = true }
 mimalloc = { workspace = true }
 rstest = { workspace = true }
 vortex-array = { workspace = true, features = ["_test-harness"] }
+vortex-fastlanes = { path = "../fastlanes" }
 
 [[bench]]
 name = "decode"
+harness = false
+
+[[bench]]
+name = "probe"
 harness = false
