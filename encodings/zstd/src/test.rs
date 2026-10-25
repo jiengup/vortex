@@ -5,6 +5,7 @@
 use std::sync::LazyLock;
 
 use rstest::rstest;
+use vortex_array::ArrayRef;
 use vortex_array::ExecutionCtx;
 use vortex_array::IntoArray;
 use vortex_array::VortexSessionExecute;
@@ -35,6 +36,40 @@ use crate::ZstdFrameMetadata;
 use crate::ZstdMetadata;
 
 static SESSION: LazyLock<VortexSession> = LazyLock::new(VortexSession::empty);
+
+#[test]
+fn test_zstd_scalar_probe_consistency() -> VortexResult<()> {
+    let mut ctx = array_session().create_execution_ctx();
+    let primitive = PrimitiveArray::from_option_iter(
+        (0..300).map(|index| (index % 11 != 0).then_some(index)),
+    );
+    let utf8 = VarBinViewArray::from_iter_str(
+        (0..300).map(|index| format!("row-{index:03}-long-enough-for-a-buffer")),
+    );
+    let cases: Vec<(ArrayRef, ArrayRef)> = vec![
+        (
+            Zstd::from_primitive(&primitive, 0, 31, &mut ctx)?
+                .slice(37..290)?
+                .into_array(),
+            primitive.into_array().slice(37..290)?,
+        ),
+        (
+            Zstd::from_var_bin_view_without_dict(&utf8, 0, 31, &mut ctx)?
+                .slice(37..290)?
+                .into_array(),
+            utf8.into_array().slice(37..290)?,
+        ),
+    ];
+    for (array, expected) in cases {
+        let mut repeated = array.repeated_probe();
+        for index in [0, 1, 2, 90, 91, 92, 127, 128, 129, 252, 0, 91] {
+            let expected = expected.execute_scalar(index, &mut ctx)?;
+            assert_eq!(array.execute_scalar(index, &mut ctx)?, expected);
+            assert_eq!(repeated.execute_scalar(index, &mut ctx)?, expected);
+        }
+    }
+    Ok(())
+}
 
 #[test]
 fn test_zstd_compress_decompress() {
