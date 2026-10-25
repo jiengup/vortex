@@ -39,3 +39,7 @@ vortex-array = { workspace = true, features = ["_test-harness"] }
 [[bench]]
 name = "zstd_probe"
 harness = false
+
+[[bench]]
+name = "zstd_buffers_probe"
+harness = false
