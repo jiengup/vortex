@@ -768,10 +768,9 @@ mod tests {
 
     #[test]
     fn test_scalar_probe_consistency() -> VortexResult<()> {
-        let session = array_session();
-        let mut ctx = session.create_execution_ctx();
+        let mut ctx = SESSION.create_execution_ctx();
         for input in [make_nullable_primitive_array(), make_nullable_varbinview_array()] {
-            let compressed = ZstdBuffers::compress(&input, 3, &session)?.into_array();
+            let compressed = ZstdBuffers::compress(&input, 3, &SESSION)?.into_array();
             let mut repeated = compressed.repeated_probe();
             for index in [0, 1, 4, 3, 2, 1, 0] {
                 let expected = input.execute_scalar(index, &mut ctx)?;
