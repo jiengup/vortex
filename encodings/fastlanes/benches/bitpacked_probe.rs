@@ -11,6 +11,7 @@ use vortex_array::ArrayRef;
 use vortex_array::IntoArray;
 use vortex_array::VortexSessionExecute;
 use vortex_array::arrays::PrimitiveArray;
+use vortex_array::optimizer::kernels::KernelSession;
 use vortex_array::scalar::Scalar;
 use vortex_fastlanes::BitPacked;
 use vortex_fastlanes::BitPackedArrayExt;
@@ -41,7 +42,7 @@ const FIXTURES: &[(&str, bool)] = &[
 const PATCHED_FIXTURES: &[&str] = &["global", "blocked_primitive", "blocked_for"];
 
 static SESSION: LazyLock<VortexSession> = LazyLock::new(|| {
-    let session = vortex_array::array_session();
+    let session = VortexSession::empty().with::<KernelSession>();
     vortex_fastlanes::initialize(&session);
     session
 });
