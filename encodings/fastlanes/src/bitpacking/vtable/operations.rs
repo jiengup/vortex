@@ -28,7 +28,7 @@ impl OperationsVTable<BitPacked> for BitPacked {
             return Ok(Scalar::null(state.array().dtype().clone()));
         }
         let array = state.array();
-        let (mut retained, mut children) = state.split();
+        let (retained, mut children) = state.split();
         let patch_idx = array
             .patches()
             .map(|patches| {
@@ -54,7 +54,7 @@ impl OperationsVTable<BitPacked> for BitPacked {
                     offsets,
                     index,
                     &mut children,
-                    retained.as_deref_mut().map(|state| &mut state.block_cache),
+                    retained.map(|state| &mut state.block_cache),
                     ctx,
                 )
             }
@@ -347,7 +347,7 @@ mod test {
             } else if index % 64 == 0 {
                 Some(1000i32)
             } else {
-                Some((index % 64) as i32)
+                Some(index % 64)
             }
         }));
         let encoded = bitpack_encode(&values, 6, None, &mut ctx)?.into_array();
@@ -480,7 +480,10 @@ mod test {
             } else {
                 1u32
             };
-            assert_eq!(probe.execute_scalar(index, &mut ctx)?, Scalar::from(expected));
+            assert_eq!(
+                probe.execute_scalar(index, &mut ctx)?,
+                Scalar::from(expected)
+            );
         }
         Ok(())
     }

@@ -9,10 +9,10 @@ use vortex_array::vtable::OperationsVTable;
 use vortex_error::VortexExpect;
 use vortex_error::VortexResult;
 
+use crate::PATCH_SLOTS;
 use crate::Sparse;
 use crate::SparseExt as _;
 use crate::SparseSlots;
-use crate::PATCH_SLOTS;
 
 impl OperationsVTable<Sparse> for Sparse {
     type ProbeState = ();
@@ -54,7 +54,6 @@ mod tests {
     use vortex_array::VortexSessionExecute;
     use vortex_array::arrays::PrimitiveArray;
     use vortex_array::assert_arrays_eq;
-    use vortex_array::builtins::ArrayBuiltins;
     use vortex_array::dtype::DType;
     use vortex_array::dtype::Nullability;
     use vortex_array::dtype::PType;
@@ -117,7 +116,10 @@ mod tests {
         let sliced = array.slice(1..9)?;
         let mut sliced_probe = sliced.repeated_probe();
         for index in [1, 4, 7, 0, 1] {
-            assert_eq!(sliced_probe.execute_scalar(index, &mut ctx)?, expected[index + 1]);
+            assert_eq!(
+                sliced_probe.execute_scalar(index, &mut ctx)?,
+                expected[index + 1]
+            );
         }
         Ok(())
     }

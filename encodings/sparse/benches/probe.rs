@@ -47,18 +47,21 @@ fn main() {
 
 fn fixture(mode: &str) -> ArrayRef {
     let mut ctx = SESSION.create_execution_ctx();
-    let indices: Buffer<u32> = (0..LEN / 8).map(|index| (index * 8) as u32).collect();
+    let indices: Buffer<u32> = (0..LEN / 8)
+        .map(|index| u32::try_from(index * 8).unwrap())
+        .collect();
     let (values, fill) = if mode == "nullable" {
         (
-            PrimitiveArray::from_option_iter((0..LEN / 8).map(|index| {
-                (index % 3 != 0).then_some(index as i32)
-            }))
+            PrimitiveArray::from_option_iter(
+                (0..LEN / 8).map(|index| (index % 3 != 0).then_some(i32::try_from(index).unwrap())),
+            )
             .into_array(),
             Scalar::null(DType::Primitive(PType::I32, Nullability::Nullable)),
         )
     } else {
         (
-            PrimitiveArray::from_iter((0..LEN / 8).map(|index| index as i32)).into_array(),
+            PrimitiveArray::from_iter((0..LEN / 8).map(|index| i32::try_from(index).unwrap()))
+                .into_array(),
             Scalar::from(-1i32),
         )
     };
@@ -83,7 +86,11 @@ fn one_off(bencher: Bencher, (mode, pattern): (&str, &str)) {
         .with_inputs(|| SESSION.create_execution_ctx())
         .bench_refs(|ctx| {
             for read in 0..ACCESSES {
-                divan::black_box(array.execute_scalar(read_index(pattern, read), ctx).unwrap());
+                divan::black_box(
+                    array
+                        .execute_scalar(read_index(pattern, read), ctx)
+                        .unwrap(),
+                );
             }
         });
 }
@@ -95,7 +102,11 @@ fn repeated(bencher: Bencher, (mode, pattern): (&str, &str)) {
         .with_inputs(|| (SESSION.create_execution_ctx(), array.repeated_probe()))
         .bench_refs(|(ctx, probe)| {
             for read in 0..ACCESSES {
-                divan::black_box(probe.execute_scalar(read_index(pattern, read), ctx).unwrap());
+                divan::black_box(
+                    probe
+                        .execute_scalar(read_index(pattern, read), ctx)
+                        .unwrap(),
+                );
             }
         });
 }

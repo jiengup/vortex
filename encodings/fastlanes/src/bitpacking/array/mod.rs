@@ -142,7 +142,7 @@ where
 ///
 /// The block must lie within `packed_len` bytes and be a whole number of 128-byte rows of at most
 /// `max_bit_width` bits.
-fn block_range(
+pub(crate) fn block_range(
     base: u64,
     start: u64,
     end: u64,

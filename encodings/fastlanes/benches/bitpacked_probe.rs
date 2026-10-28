@@ -48,13 +48,15 @@ static SESSION: LazyLock<VortexSession> = LazyLock::new(|| {
 });
 
 fn fixture(mode: &str, patched: bool) -> ArrayRef {
-    let widths: Vec<u8> = (0..LEN / 1024).map(|block| 4 + (block % 4) as u8).collect();
+    let widths: Vec<u8> = (0..LEN / 1024)
+        .map(|block| 4 + u8::try_from(block % 4).unwrap())
+        .collect();
     let values = PrimitiveArray::from_iter((0..LEN).map(|index| {
         let width = widths[index / 1024];
         if patched && index % 64 == 0 {
             65_535u32
         } else {
-            ((index * 7919) as u32) & ((1u32 << width) - 1)
+            (u32::try_from(index * 7919).unwrap()) & ((1u32 << width) - 1)
         }
     }));
     let mut ctx = SESSION.create_execution_ctx();

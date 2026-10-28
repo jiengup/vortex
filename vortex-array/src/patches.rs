@@ -465,7 +465,10 @@ impl Patches {
     /// [`SearchResult::Found(patch_idx)`]: SearchResult::Found
     /// [`SearchResult::NotFound(insertion_point)`]: SearchResult::NotFound
     pub fn search_index(&self, index: usize, ctx: &mut ExecutionCtx) -> VortexResult<SearchResult> {
-        let mut chunk_probe = self.chunk_offsets.as_ref().map(|array| array.repeated_probe());
+        let mut chunk_probe = self
+            .chunk_offsets
+            .as_ref()
+            .map(|array| array.repeated_probe());
         let Some((range, needle)) = self.search_range(index, |idx| {
             chunk_probe
                 .as_mut()
@@ -474,7 +477,8 @@ impl Patches {
                 .as_primitive()
                 .as_::<usize>()
                 .ok_or_else(|| vortex_err!("chunk offset does not fit in usize"))
-        })? else {
+        })?
+        else {
             return Ok(SearchResult::NotFound(self.indices.len()));
         };
 
@@ -502,7 +506,8 @@ impl Patches {
                 .as_primitive()
                 .as_::<usize>()
                 .ok_or_else(|| vortex_err!("chunk offset does not fit in usize"))
-        })? else {
+        })?
+        else {
             return Ok(SearchResult::NotFound(self.indices.len()));
         };
 
@@ -591,7 +596,10 @@ impl Patches {
             self.indices.len()
         };
 
-        Ok(Some((patches_start_idx..patches_end_idx, index + self.offset)))
+        Ok(Some((
+            patches_start_idx..patches_end_idx,
+            index + self.offset,
+        )))
     }
 
     /// Batch version of `search_index`.

@@ -80,9 +80,7 @@ fn decode_chunk(
     ctx: &mut ExecutionCtx,
 ) -> VortexResult<PrimitiveArray> {
     let lanes = lane_count(array.dtype().as_ptype());
-    let bases = array
-        .bases()
-        .slice(chunk * lanes..(chunk + 1) * lanes)?;
+    let bases = array.bases().slice(chunk * lanes..(chunk + 1) * lanes)?;
     let deltas = array
         .deltas()
         .slice(chunk * FL_CHUNK_SIZE..(chunk + 1) * FL_CHUNK_SIZE)?;

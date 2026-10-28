@@ -27,7 +27,7 @@ impl OperationsVTable<ALPRD> for ALPRD {
             return Ok(Scalar::null(state.array().dtype().clone()));
         }
         let array = state.array();
-        let (mut retained, mut children) = state.split();
+        let (retained, mut children) = state.split();
         // The left value can either be a direct value, or an exception.
         // The exceptions array represents exception positions with non-null values.
         let patch_idx = if array.array().slots()[ALPRDSlots::PATCH_INDICES].is_none() {
@@ -45,9 +45,9 @@ impl OperationsVTable<ALPRD> for ALPRD {
                         .vortex_expect("patch indices are present")
                         .search_index_with_probes(index, &mut children, LP_PATCH_SLOTS, ctx)?
                         .to_found();
-                    if let Some(state) = retained.as_deref_mut() {
-                        state.last_query = (state.last_index == Some(index))
-                            .then_some((index, patch_idx));
+                    if let Some(state) = retained {
+                        state.last_query =
+                            (state.last_index == Some(index)).then_some((index, patch_idx));
                         state.last_index = Some(index);
                     }
                     patch_idx
@@ -270,8 +270,14 @@ mod test {
             } else {
                 1.0f64
             };
-            assert_eq!(probe.execute_scalar(index, &mut ctx)?, Scalar::from(expected));
-            assert_eq!(sliced.execute_scalar(index, &mut ctx)?, Scalar::from(expected));
+            assert_eq!(
+                probe.execute_scalar(index, &mut ctx)?,
+                Scalar::from(expected)
+            );
+            assert_eq!(
+                sliced.execute_scalar(index, &mut ctx)?,
+                Scalar::from(expected)
+            );
         }
         Ok(())
     }

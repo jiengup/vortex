@@ -15,6 +15,7 @@ use vortex_array::optimizer::kernels::KernelSession;
 use vortex_fastlanes::Delta;
 use vortex_fastlanes::DeltaArraySlotsExt;
 use vortex_fastlanes::bitpack_compress::bitpack_encode;
+use vortex_fastlanes::bitpack_compress::bitpack_encode_blocked;
 use vortex_session::VortexSession;
 
 #[global_allocator]
@@ -29,6 +30,9 @@ const CASES: &[(&str, &str)] = &[
     ("bitpacked_u32", "random"),
     ("bitpacked_u32", "same_chunk"),
     ("bitpacked_u32", "two_chunks"),
+    ("blocked_u32", "random"),
+    ("blocked_u32", "same_chunk"),
+    ("blocked_u32", "two_chunks"),
     ("nullable_i32", "random"),
     ("nullable_i32", "same_chunk"),
     ("nullable_i32", "two_chunks"),
@@ -48,23 +52,28 @@ fn main() {
 fn fixture(mode: &str) -> ArrayRef {
     let mut ctx = SESSION.create_execution_ctx();
     if mode == "nullable_i32" {
-        let source = PrimitiveArray::from_option_iter((0..LEN).map(|index| {
-            (index % 7 != 0).then_some(index as i32 - 32_000)
-        }));
+        let source = PrimitiveArray::from_option_iter(
+            (0..LEN)
+                .map(|index| (index % 7 != 0).then_some(i32::try_from(index).unwrap() - 32_000)),
+        );
         return Delta::try_from_primitive_array(&source, &mut ctx)
             .unwrap()
             .into_array();
     }
 
-    let source = PrimitiveArray::from_iter((0..LEN).map(|index| index as u32 * 2));
+    let source = PrimitiveArray::from_iter((0..LEN).map(|index| u32::try_from(index).unwrap() * 2));
     let encoded = Delta::try_from_primitive_array(&source, &mut ctx).unwrap();
-    if mode == "bitpacked_u32" {
+    if mode == "bitpacked_u32" || mode == "blocked_u32" {
         let deltas = encoded
             .deltas()
             .clone()
             .execute::<PrimitiveArray>(&mut ctx)
             .unwrap();
-        let packed = bitpack_encode(&deltas, 16, None, &mut ctx).unwrap();
+        let packed = if mode == "blocked_u32" {
+            bitpack_encode_blocked(&deltas, &[16; LEN / 1024], None, &mut ctx).unwrap()
+        } else {
+            bitpack_encode(&deltas, 16, None, &mut ctx).unwrap()
+        };
         Delta::try_new(
             encoded.bases().clone(),
             packed.into_array(),
@@ -95,7 +104,11 @@ fn one_off(bencher: Bencher, (mode, pattern): (&str, &str)) {
         .with_inputs(|| SESSION.create_execution_ctx())
         .bench_refs(|ctx| {
             for read in 0..ACCESSES {
-                divan::black_box(array.execute_scalar(read_index(pattern, read), ctx).unwrap());
+                divan::black_box(
+                    array
+                        .execute_scalar(read_index(pattern, read), ctx)
+                        .unwrap(),
+                );
             }
         });
 }
@@ -107,7 +120,11 @@ fn repeated(bencher: Bencher, (mode, pattern): (&str, &str)) {
         .with_inputs(|| (SESSION.create_execution_ctx(), array.repeated_probe()))
         .bench_refs(|(ctx, probe)| {
             for read in 0..ACCESSES {
-                divan::black_box(probe.execute_scalar(read_index(pattern, read), ctx).unwrap());
+                divan::black_box(
+                    probe
+                        .execute_scalar(read_index(pattern, read), ctx)
+                        .unwrap(),
+                );
             }
         });
 }
