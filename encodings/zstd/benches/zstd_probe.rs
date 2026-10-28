@@ -48,7 +48,7 @@ fn fixture(mode: &str) -> ArrayRef {
     let mut ctx = SESSION.create_execution_ctx();
     match mode {
         "primitive" => Zstd::from_primitive(
-            &PrimitiveArray::from_iter((0..LEN).map(|index| index as i32)),
+            &PrimitiveArray::from_iter((0..LEN).map(|index| i32::try_from(index).unwrap())),
             0,
             128,
             &mut ctx,
@@ -57,7 +57,7 @@ fn fixture(mode: &str) -> ArrayRef {
         .into_array(),
         "nullable" => Zstd::from_primitive(
             &PrimitiveArray::from_option_iter(
-                (0..LEN).map(|index| (index % 7 != 0).then_some(index as i32)),
+                (0..LEN).map(|index| (index % 7 != 0).then_some(i32::try_from(index).unwrap())),
             ),
             0,
             128,
@@ -95,7 +95,11 @@ fn one_off(bencher: Bencher, (mode, pattern): (&str, &str)) {
         .with_inputs(|| SESSION.create_execution_ctx())
         .bench_refs(|ctx| {
             for read in 0..ACCESSES {
-                divan::black_box(array.execute_scalar(read_index(pattern, read), ctx).unwrap());
+                divan::black_box(
+                    array
+                        .execute_scalar(read_index(pattern, read), ctx)
+                        .unwrap(),
+                );
             }
         });
 }
@@ -107,7 +111,11 @@ fn repeated(bencher: Bencher, (mode, pattern): (&str, &str)) {
         .with_inputs(|| (SESSION.create_execution_ctx(), array.repeated_probe()))
         .bench_refs(|(ctx, probe)| {
             for read in 0..ACCESSES {
-                divan::black_box(probe.execute_scalar(read_index(pattern, read), ctx).unwrap());
+                divan::black_box(
+                    probe
+                        .execute_scalar(read_index(pattern, read), ctx)
+                        .unwrap(),
+                );
             }
         });
 }

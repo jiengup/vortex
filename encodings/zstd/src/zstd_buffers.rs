@@ -37,8 +37,8 @@ use vortex_array::vtable::validity_to_child;
 use vortex_buffer::Alignment;
 use vortex_buffer::ByteBuffer;
 use vortex_buffer::ByteBufferMut;
-use vortex_error::VortexResult;
 use vortex_error::VortexExpect;
+use vortex_error::VortexResult;
 use vortex_error::vortex_ensure;
 use vortex_error::vortex_ensure_eq;
 use vortex_error::vortex_err;
@@ -663,8 +663,10 @@ impl OperationsVTable<ZstdBuffers> for ZstdBuffers {
             });
             if cacheable {
                 if retained.inner.is_none() {
-                    let decoded =
-                        ZstdBuffers::decompress_and_build_inner(&array.into_owned(), ctx.session())?;
+                    let decoded = ZstdBuffers::decompress_and_build_inner(
+                        &array.into_owned(),
+                        ctx.session(),
+                    )?;
                     retained.inner = Some(decoded.repeated_probe());
                 }
                 return retained
@@ -769,7 +771,10 @@ mod tests {
     #[test]
     fn test_scalar_probe_consistency() -> VortexResult<()> {
         let mut ctx = SESSION.create_execution_ctx();
-        for input in [make_nullable_primitive_array(), make_nullable_varbinview_array()] {
+        for input in [
+            make_nullable_primitive_array(),
+            make_nullable_varbinview_array(),
+        ] {
             let compressed = ZstdBuffers::compress(&input, 3, &SESSION)?.into_array();
             let mut repeated = compressed.repeated_probe();
             for index in [0, 1, 4, 3, 2, 1, 0] {

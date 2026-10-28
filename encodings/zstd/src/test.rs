@@ -40,9 +40,8 @@ static SESSION: LazyLock<VortexSession> = LazyLock::new(VortexSession::empty);
 #[test]
 fn test_zstd_scalar_probe_consistency() -> VortexResult<()> {
     let mut ctx = SESSION.create_execution_ctx();
-    let primitive = PrimitiveArray::from_option_iter(
-        (0..300).map(|index| (index % 11 != 0).then_some(index)),
-    );
+    let primitive =
+        PrimitiveArray::from_option_iter((0..300).map(|index| (index % 11 != 0).then_some(index)));
     let utf8 = VarBinViewArray::from_iter_str(
         (0..300).map(|index| format!("row-{index:03}-long-enough-for-a-buffer")),
     );

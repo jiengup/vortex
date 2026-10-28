@@ -134,7 +134,11 @@ fn one_off(bencher: Bencher, (mode, pattern): (&str, &str)) {
         .with_inputs(|| SESSION.create_execution_ctx())
         .bench_refs(|ctx| {
             for read in 0..ACCESSES {
-                divan::black_box(array.execute_scalar(read_index(pattern, read), ctx).unwrap());
+                divan::black_box(
+                    array
+                        .execute_scalar(read_index(pattern, read), ctx)
+                        .unwrap(),
+                );
             }
         });
 }
@@ -146,7 +150,11 @@ fn repeated(bencher: Bencher, (mode, pattern): (&str, &str)) {
         .with_inputs(|| (SESSION.create_execution_ctx(), array.repeated_probe()))
         .bench_refs(|(ctx, probe)| {
             for read in 0..ACCESSES {
-                divan::black_box(probe.execute_scalar(read_index(pattern, read), ctx).unwrap());
+                divan::black_box(
+                    probe
+                        .execute_scalar(read_index(pattern, read), ctx)
+                        .unwrap(),
+                );
             }
         });
 }

@@ -1631,10 +1631,11 @@ impl OperationsVTable<Zstd> for Zstd {
         } else {
             index + 1
         };
-        let slice = array
-            .data()
-            .with_slice(start, stop)
-            .decompress_slice(array.dtype(), &unsliced_validity, ctx)?;
+        let slice = array.data().with_slice(start, stop).decompress_slice(
+            array.dtype(),
+            &unsliced_validity,
+            ctx,
+        )?;
         let retain = slice.bytes.len() <= MAX_RETAINED_DECOMPRESSED_BYTES;
         let decoded = ZstdData::array_from_decompressed_slice(array.dtype(), slice, ctx)?;
         let scalar = decoded.execute_scalar(index - start, ctx)?;

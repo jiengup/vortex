@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright the Vortex contributors
 
+use num_traits::ToPrimitive;
 use vortex_array::ArrayRef;
 use vortex_array::ArrayView;
 use vortex_array::ExecutionCtx;
@@ -151,8 +152,9 @@ fn metadata_at(
         && primitive.buffer_handle().is_on_host()
     {
         return match_each_integer_ptype!(primitive.ptype(), |T| {
-            usize::try_from(primitive.as_slice::<T>()[index])
-                .map_err(|_| vortex_err!("OnPair {name}[{index}] is null, negative, or too large"))
+            primitive.as_slice::<T>()[index].to_usize().ok_or_else(|| {
+                vortex_err!("OnPair {name}[{index}] is null, negative, or too large")
+            })
         });
     }
 

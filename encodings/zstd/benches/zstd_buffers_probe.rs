@@ -43,9 +43,12 @@ fn main() {
 
 fn fixture(mode: &str) -> ArrayRef {
     let input = match mode {
-        "primitive" => PrimitiveArray::from_iter((0..LEN).map(|index| index as i32)).into_array(),
+        "primitive" => {
+            PrimitiveArray::from_iter((0..LEN).map(|index| i32::try_from(index).unwrap()))
+                .into_array()
+        }
         "nullable" => PrimitiveArray::from_option_iter(
-            (0..LEN).map(|index| (index % 7 != 0).then_some(index as i32)),
+            (0..LEN).map(|index| (index % 7 != 0).then_some(i32::try_from(index).unwrap())),
         )
         .into_array(),
         "utf8" => VarBinViewArray::from_iter_str(
@@ -74,7 +77,11 @@ fn one_off(bencher: Bencher, (mode, pattern): (&str, &str)) {
         .with_inputs(|| SESSION.create_execution_ctx())
         .bench_refs(|ctx| {
             for read in 0..ACCESSES {
-                divan::black_box(array.execute_scalar(read_index(pattern, read), ctx).unwrap());
+                divan::black_box(
+                    array
+                        .execute_scalar(read_index(pattern, read), ctx)
+                        .unwrap(),
+                );
             }
         });
 }
@@ -86,7 +93,11 @@ fn repeated(bencher: Bencher, (mode, pattern): (&str, &str)) {
         .with_inputs(|| (SESSION.create_execution_ctx(), array.repeated_probe()))
         .bench_refs(|(ctx, probe)| {
             for read in 0..ACCESSES {
-                divan::black_box(probe.execute_scalar(read_index(pattern, read), ctx).unwrap());
+                divan::black_box(
+                    probe
+                        .execute_scalar(read_index(pattern, read), ctx)
+                        .unwrap(),
+                );
             }
         });
 }

@@ -304,9 +304,7 @@ fn test_onpair_scalar_at_window() -> vortex_error::VortexResult<()> {
 #[test]
 fn test_onpair_probe_nullable_revisits_and_nested_slice() -> vortex_error::VortexResult<()> {
     let strings: Vec<Option<String>> = (0..2050)
-        .map(|index| {
-            (index % 11 != 0).then(|| format!("https://example.com/items/{index:08}"))
-        })
+        .map(|index| (index % 11 != 0).then(|| format!("https://example.com/items/{index:08}")))
         .collect();
     let input = VarBinArray::from_iter(
         strings.iter().map(|value| value.as_deref()),
